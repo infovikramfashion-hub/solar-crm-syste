@@ -6,16 +6,34 @@ export async function POST(req: Request) {
     
     // 1. Shopify mathi data kadho
     const customerName = body.customer?.first_name || "Customer";
-    const phone = body.customer?.phone || body.billing_address?.phone || body.shipping_address?.phone;
+    const rawPhone = body.customer?.phone || body.billing_address?.phone || body.shipping_address?.phone;
     const orderNumber = body.name;
     const totalAmount = body.total_price;
     
     // 2. Check karo ke aa COD order che ke nahi
-    // Shopify ma COD mate gateway "manual" hoy che athva financial_status "pending" hoy che
-    const isCOD = body.gateway === "manual" || body.payment_gateway_names.includes("Cash on Delivery (COD)");
+    const isCOD = body.gateway === "manual" || (body.payment_gateway_names && body.payment_gateway_names.includes("Cash on Delivery (COD)"));
 
-    if (phone) {
-      const cleanPhone = phone.replace(/\D/g, '');
+    if (rawPhone) {
+      // --- PHONE NUMBER CLEANING LOGIC ---
+      // Badha non-numeric characters (+, spaces, dashes) kadhi nakho
+      let cleanPhone = rawPhone.replace(/\D/g, '');
+
+      // Jo number 0 thi sharu thato hoy (jem ke 09876...), to 0 kadhi nakho
+      if (cleanPhone.startsWith('0')) {
+        cleanPhone = cleanPhone.substring(1);
+      }
+
+      // Jo number khali 10 akda no hoy (9876543210), to aagal 91 umero
+      if (cleanPhone.length === 10) {
+        cleanPhone = `91${cleanPhone}`;
+      }
+      
+      // Jo customer e 9191... umeriyu hoy (bhul thi), to ene 12 akda ma fix karo
+      if (cleanPhone.length > 12 && cleanPhone.startsWith('9191')) {
+        cleanPhone = cleanPhone.substring(2);
+      }
+      
+      console.log(`Original: ${rawPhone} | Cleaned: ${cleanPhone}`);
 
       let whatsappPayload;
 
@@ -67,7 +85,7 @@ export async function POST(req: Request) {
       });
 
       const resData = await res.json();
-      console.log("WhatsApp Response:", resData);
+      console.log("WhatsApp API Response:", JSON.stringify(resData));
     }
 
     return NextResponse.json({ status: 'success' });
